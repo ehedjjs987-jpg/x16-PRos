@@ -175,7 +175,7 @@ install_probe_one:
     mov ah, 0x08
     int 0x13
     mov [.bios_ah], ah
-    mov [.bios_cf], 0
+    mov byte [.bios_cf], 0
     jnc .no_cf
     mov byte [.bios_cf], 1
 .no_cf:
