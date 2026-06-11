@@ -62,6 +62,8 @@ int22_handler:
     ; ---- Pre-process string arguments for functions that take them ----
     cmp al, 0x02
     jb .no_si_str
+    cmp al, 0x0A
+    je .no_si_str
     cmp al, 0x0D
     jbe .copy_si_str
     cmp al, 0x10
@@ -312,6 +314,7 @@ int22_handler:
 ; ==================================================================
 copy_caller_string_si:
     push ax
+    push cx
     push di
     push es
     push ds
@@ -319,6 +322,7 @@ copy_caller_string_si:
     push cs
     pop es
     mov di, .si_scratch
+    mov cx, 63
 
     mov ax, [cs:caller_ds_save_22]
     mov ds, ax
@@ -326,11 +330,15 @@ copy_caller_string_si:
     lodsb
     stosb
     test al, al
-    jnz .cl
+    jz .done
+    loop .cl
+    mov byte [es:di], 0
+.done:
 
     pop ds
     pop es
     pop di
+    pop cx
     pop ax
     mov si, .si_scratch
     ret
@@ -344,6 +352,7 @@ copy_caller_string_si:
 ; ==================================================================
 copy_caller_string_di:
     push ax
+    push cx
     push si
     push es
     push ds
@@ -353,6 +362,7 @@ copy_caller_string_di:
     push cs
     pop es
     mov di, .di_scratch
+    mov cx, 63
 
     mov ax, [cs:caller_ds_save_22]
     mov ds, ax
@@ -360,11 +370,15 @@ copy_caller_string_di:
     lodsb
     stosb
     test al, al
-    jnz .cl
+    jz .done
+    loop .cl
+    mov byte [es:di], 0
+.done:
 
     pop ds
     pop es
     pop si
+    pop cx
     pop ax
     mov di, .di_scratch
     ret

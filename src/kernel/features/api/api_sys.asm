@@ -334,6 +334,7 @@ int23_handler:
 ; ==================================================================
 copy_caller_string_si_23:
     push ax
+    push cx
     push di
     push es
     push ds
@@ -341,18 +342,21 @@ copy_caller_string_si_23:
     push cs
     pop es
     mov di, .scratch
-
+    mov cx, 63
     mov ax, [cs:caller_ds_save_23]
     mov ds, ax
 .cl:
     lodsb
     stosb
     test al, al
-    jnz .cl
-
+    jz .done
+    loop .cl
+    mov byte [es:di], 0
+.done:
     pop ds
     pop es
     pop di
+    pop cx
     pop ax
     mov si, .scratch
     ret
