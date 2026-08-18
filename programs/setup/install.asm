@@ -89,7 +89,8 @@ install_run:
     jmp .loop
 
 .pick:
-    movzx bx, byte [install_index]
+    mov bl, byte [install_index]
+    xor bh, bh
     shl bx, 4
     add bx, install_table
     mov al, [bx]
@@ -193,7 +194,8 @@ install_probe_one:
     cmp al, INSTALL_MAX_DRIVES
     jae .leave
 
-    movzx bx, al
+    mov bl, al
+    xor bh, bh
     shl bx, 4
     add bx, install_table
 
@@ -235,8 +237,10 @@ install_probe_one:
     mov [bx+7], al
 
     push dx
-    movzx ax, byte [bx+6]
-    movzx dx, byte [bx+7]
+    mov al, byte [bx+6]
+    xor ah, ah
+    mov dl, byte [bx+7]
+    xor dh, dh
     mul dx
     mov dx, [bx+4]
     mul dx
@@ -361,7 +365,8 @@ install_draw_list:
     add al, INST_LIST_Y
     mov [.row_y], al
 
-    movzx bx, byte [.idx]
+    mov bl, byte [.idx]
+    xor bh, bh
     shl bx, 4
     add bx, install_table
     mov [.entry], bx
@@ -454,7 +459,8 @@ install_draw_info:
     mov dh, INST_INFO_H - 3
     call font_fill_rect
 
-    movzx bx, byte [install_index]
+    mov bl, byte [install_index]
+    xor bh, bh
     shl bx, 4
     add bx, install_table
     mov [.entry], bx
@@ -596,7 +602,8 @@ install_draw_info:
     call font_put_char
     inc cl
     mov bx, [.entry]
-    movzx ax, byte [bx+6]
+    mov al, byte [bx+6]
+    xor ah, ah
     mov bl, INST_ATTR_NORMAL
     call install_print_dec
     mov al, '/'
@@ -604,7 +611,8 @@ install_draw_info:
     call font_put_char
     inc cl
     mov bx, [.entry]
-    movzx ax, byte [bx+7]
+    mov al, byte [bx+7]
+    xor ah, ah
     mov bl, INST_ATTR_NORMAL
     call install_print_dec
     inc byte [.line]
@@ -755,21 +763,26 @@ install_clone_disk:
 .src_found:
     mov al, [bx+1]
     mov [install_source_bios], al
-    movzx ax, byte [bx+6]
+    mov al, byte [bx+6]
+    xor ah, ah
     mov [install_src_heads], ax
-    movzx ax, byte [bx+7]
+    mov al, byte [bx+7]
+    xor ah, ah
     mov [install_src_spt], ax
     mov ax, [bx+8]
     mov [install_total], ax
 
-    movzx bx, byte [install_index]
+    mov bl, byte [install_index]
+    xor bh, bh
     shl bx, 4
     add bx, install_table
     mov al, [bx+1]
     mov [install_target_bios], al
-    movzx ax, byte [bx+6]
+    mov al, byte [bx+6]
+    xor ah, ah
     mov [install_tgt_heads], ax
-    movzx ax, byte [bx+7]
+    mov al, byte [bx+7]
+    xor ah, ah
     mov [install_tgt_spt], ax
     mov ax, [bx+8]
     cmp ax, [install_total]
@@ -876,7 +889,8 @@ install_clone_disk:
 
     ; If target is HDD, patch BPB on its sector 0 so the kernel can
     ; mount the FAT12 image with the right CHS geometry & drive id.
-    movzx bx, byte [install_index]
+    mov bl, byte [install_index]
+    xor bh, bh
     shl bx, 4
     add bx, install_table
     cmp byte [bx+2], 2
