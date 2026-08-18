@@ -37,6 +37,19 @@ BLUE='\033[34m'
 CYAN='\033[36m'
 NC='\033[0m'
 
+run_nasm() {
+    nasm "$@" 2>&1 | while IFS= read -r line; do
+        echo -e "$line"
+        if [[ "$line" =~ ^([^:]+):([0-9]+):(.*error.*) ]]; then
+            file="${BASH_REMATCH[1]}"
+            lineno="${BASH_REMATCH[2]}"
+            code=$(sed -n "${lineno}p" "$file" 2>/dev/null | sed -e 's/^[[:space:]]*//')
+            echo -e "      \033[33m|-->\033[0m \033[36m$code\033[0m"
+        fi
+    done
+    return ${PIPESTATUS[0]}
+}
+
 print_info() {
     local message="$1"
     if [ $FLAG_QUIET_MODE == 0 ]; then
@@ -76,7 +89,7 @@ check_error() {
 print_kernel_size() {
     local label="$1"
     local size_bytes
-    size_bytes=$(stat -c%s bin/KERNEL.BIN 2>/dev/null)
+    size_bytes=$(wc -c < bin/KERNEL.BIN 2>/dev/null | tr -d ' ')
     if [ -n "$size_bytes" ]; then
         local size_kib
         size_kib=$(( (size_bytes + 1023) / 1024 ))
@@ -86,7 +99,8 @@ print_kernel_size() {
 
 check_kernel_size_guard() {
     local size_bytes
-    size_bytes=$(stat -c%s bin/KERNEL.BIN 2>/dev/null || echo 0)
+    size_bytes=$(wc -c < bin/KERNEL.BIN 2>/dev/null | tr -d ' ' || echo 0)
+    if [ -z "$size_bytes" ]; then size_bytes=0; fi
 
     if [ "$size_bytes" -le 0 ]; then
         print_failed "Kernel image missing: bin/KERNEL.BIN"
@@ -106,6 +120,9 @@ check_kernel_size_guard() {
 mkdir -p bin
 mkdir -p disk_img
 
+echo "CPU 186" > bin/cpu_186.inc
+CPU_FLAG="-p bin/cpu_186.inc"
+
 print_splitline "Starting x16-PRos build..."
 
 echo -e "$NC"
@@ -113,7 +130,7 @@ echo -e "$NC"
 # Compile bootloader
 if [ $FLAG_NO_BOOT_RECOMP == 0 ]; then
     print_info "Compiling bootloader (boot.asm => bin/BOOT.BIN)..."
-    nasm -f bin src/bootloader/boot.asm -o bin/BOOT.BIN
+    nasm $CPU_FLAG -f bin src/bootloader/boot.asm -o bin/BOOT.BIN
     check_error "Bootloader compilation failed"
     print_ok "Bootloader compiled successfully"
 fi
@@ -124,12 +141,14 @@ if [ $FLAG_NO_KERNEL_RECOMP == 0 ]; then
     if [ $FLAG_NO_LOGO_DISPLAY == 1 ]; then
         addition_flags="-d NO_LOGO_DISPLAY"
     fi
-    baseline_kernel_size=$(stat -c%s bin/KERNEL.BIN 2>/dev/null || echo 0)
+    baseline_kernel_size=$(wc -c < bin/KERNEL.BIN 2>/dev/null | tr -d ' ' || echo 0)
+    if [ -z "$baseline_kernel_size" ]; then baseline_kernel_size=0; fi
     print_info "Compiling kernel (kernel.asm => bin/KERNEL.BIN)..."
-    nasm -f bin src/kernel/kernel.asm -o bin/KERNEL.BIN $addition_flags
+    run_nasm $CPU_FLAG -f bin src/kernel/kernel.asm -o bin/KERNEL.BIN $addition_flags
     check_error "Kernel compilation failed"
     print_ok "Kernel compiled successfully"
-    current_kernel_size=$(stat -c%s bin/KERNEL.BIN 2>/dev/null || echo 0)
+    current_kernel_size=$(wc -c < bin/KERNEL.BIN 2>/dev/null | tr -d ' ' || echo 0)
+    if [ -z "$current_kernel_size" ]; then current_kernel_size=0; fi
     if [ "$baseline_kernel_size" -gt 0 ]; then
         delta_kernel_size=$((current_kernel_size - baseline_kernel_size))
         delta_sign="+"
@@ -154,19 +173,11 @@ mkfs.vfat disk_img/x16pros.img -n "x16-PROS"
 check_error "Disk formatting failed"
 print_ok "Disk image formatted successfully"
 
-# ==================================================================
-# This section of the script creates the FLOPPY2.IMG disk image. 
-# It connects to the emulator launched with run-linux.sh and is simply 
-# used to demonstrate the system's ability to operate with multiple 
-# disks and to store additional files. 
-# Removing it won't cause any serious problems.
-# ==================================================================
 dd if=/dev/zero of=disk_img/FLOPPY2.img bs=512 count=2880 conv=notrunc status=none
 check_error "FLOPPY2.img creation failed"
 
 mkfs.vfat disk_img/FLOPPY2.img -n "x16-PROS"
 check_error "FLOPPY2.img formatting failed"
-# ==================================================================
 
 # Write bootloader
 print_info "Writing bootloader to disk..."
@@ -180,96 +191,22 @@ mcopy -i disk_img/x16pros.img bin/KERNEL.BIN ::/
 check_error "Kernel copy failed"
 print_ok "Kernel copied successfully"
 
-# Create BIN directory
-print_splitline "Creating BIN directory..."
-print_info "Creating BIN directory..."
-mmd -i disk_img/x16pros.img ::/BIN.DIR
-check_error "Failed to create BIN directory"
-print_ok "BIN directory created successfully"
-
-# Create COM directory
-print_splitline "Creating COM directory..."
-print_info "Creating COM directory..."
-mmd -i disk_img/x16pros.img ::/COM.DIR
-check_error "Failed to create COM directory"
-print_ok "COM directory created successfully"
-
-# Create EXE directory
-print_splitline "Creating EXE directory..."
-print_info "Creating EXE directory..."
-mmd -i disk_img/x16pros.img ::/EXE.DIR
-check_error "Failed to create EXE directory"
-print_ok "EXE directory created successfully"
-
-# Create PLE directory
-print_splitline "Creating PLE directory..."
-print_info "Creating PLE directory..."
-mmd -i disk_img/x16pros.img ::/PLE.DIR
-check_error "Failed to create PLE directory"
-print_ok "PLE directory created successfully"
-
-# Create BMP directory
-print_splitline "Creating BMP directory..."
-print_info "Creating BMP directory..."
-mmd -i disk_img/x16pros.img ::/BMP.DIR
-check_error "Failed to create BMP directory"
-print_ok "BMP directory created successfully"
-
-# Create CONF directory
-print_splitline "Creating CONF directory..."
-print_info "Creating CONF directory..."
-mmd -i disk_img/x16pros.img ::/CONF.DIR
-check_error "Failed to create CONF directory"
-print_ok "CONF directory created successfully"
-
-# Create DOCS directory
-print_splitline "Creating DOCS directory..."
-print_info "Creating DOCS directory..."
-mmd -i disk_img/x16pros.img ::/DOCS.DIR
-check_error "Failed to create DOCS directory"
-print_ok "DOCS directory created successfully"
-
-# Create MUSIC directory
-print_splitline "Creating MUSIC directory..."
-print_info "Creating MUSIC directory..."
-mmd -i disk_img/x16pros.img ::/MUSIC.DIR
-check_error "Failed to create MUSIC directory"
-print_ok "MUSIC directory created successfully"
-
-# Create FONTS directory
-print_splitline "Creating FONTS directory..."
-print_info "Creating FONTS directory..."
-mmd -i disk_img/x16pros.img ::/FONTS.DIR
-check_error "Failed to create FONTS directory"
-print_ok "FONTS directory created successfully"
-
-# Create THEMES directory
-print_splitline "Creating THEMES directory..."
-print_info "Creating THEMES directory..."
-mmd -i disk_img/x16pros.img ::/THEMES.DIR
-check_error "Failed to create THEMES directory"
-print_ok "THEMES directory created successfully"
+# Directories creation...
+for dir in BIN COM EXE PLE BMP CONF DOCS MUSIC FONTS THEMES; do
+    print_splitline "Creating $dir directory..."
+    print_info "Creating $dir directory..."
+    mmd -i disk_img/x16pros.img ::/$dir.DIR
+    check_error "Failed to create $dir directory"
+    print_ok "$dir directory created successfully"
+done
 
 # Copy fonts
-print_info "Copying DEFAULT.FNT to disk..."
-mcopy -i disk_img/x16pros.img assets/fonts/DEFAULT.FNT ::/FONTS.DIR/
-check_error "DEFAULT.FNT copy failed"
-print_ok "DEFAULT.FNT copied successfully"
-
-print_info "Copying BOLD.FNT to disk..."
-mcopy -i disk_img/x16pros.img assets/fonts/BOLD.FNT ::/FONTS.DIR/
-check_error "BOLD.FNT copy failed"
-print_ok "BOLD.FNT copied successfully"
-
-print_info "Copying THIN.FNT to disk..."
-mcopy -i disk_img/x16pros.img assets/fonts/THIN.FNT ::/FONTS.DIR/
-check_error "THIN.FNT copy failed"
-print_ok "THIN.FNT copied successfully"
-
-print_info "Copying ITALIC.FNT to disk..."
-mcopy -i disk_img/x16pros.img assets/fonts/ITALIC.FNT ::/FONTS.DIR/
-check_error "ITALIC.FNT copy failed"
-print_ok "ITALIC.FNT copied successfully"
+for font in DEFAULT BOLD THIN ITALIC; do
+    print_info "Copying ${font}.FNT to disk..."
+    mcopy -i disk_img/x16pros.img assets/fonts/${font}.FNT ::/FONTS.DIR/
+    check_error "${font}.FNT copy failed"
+    print_ok "${font}.FNT copied successfully"
+done
 
 # Copy themes
 print_splitline "Copying themes..."
@@ -285,27 +222,11 @@ echo -e "$NC"
 
 # Copy config files
 print_info "Copying kernelconfig files..."
-mcopy -i disk_img/x16pros.img src/kernel/configs/USER.CFG ::/CONF.DIR/
-check_error "USER.CFG copy failed"
-print_ok "USER.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/FIRST_B.CFG ::/CONF.DIR/
-check_error "FIRST_B.CFG copy failed"
-print_ok "FIRST_B.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/PASSWORD.CFG ::/CONF.DIR/
-check_error "PASSWORD.CFG copy failed"
-print_ok "PASSWORD.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/TIMEZONE.CFG ::/CONF.DIR/
-check_error "TIMEZONE.CFG copy failed"
-print_ok "TIMEZONE.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/PROMPT.CFG ::/CONF.DIR/
-check_error "PROMPT.CFG copy failed"
-print_ok "PROMPT.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/THEME.CFG ::/CONF.DIR/
-check_error "THEME.CFG copy failed"
-print_ok "THEME.CFG copied successfully"
-mcopy -i disk_img/x16pros.img src/kernel/configs/FONT.CFG ::/CONF.DIR/
-check_error "FONT.CFG copy failed"
-print_ok "FONT.CFG copied successfully"
+for cfg in USER FIRST_B PASSWORD TIMEZONE PROMPT THEME FONT; do
+    mcopy -i disk_img/x16pros.img src/kernel/configs/${cfg}.CFG ::/CONF.DIR/
+    check_error "${cfg}.CFG copy failed"
+    print_ok "${cfg}.CFG copied successfully"
+done
 mcopy -i disk_img/x16pros.img src/kernel/configs/SYSTEM.CFG ::/
 check_error "SYSTEM.CFG copy failed"
 print_ok "SYSTEM.CFG copied successfully"
@@ -313,7 +234,6 @@ print_ok "SYSTEM.CFG copied successfully"
 # Compile and copy programs
 print_splitline "Compiling and copying programs..."
 
-# Define programs as an array of tuples: source, output_name
 programs_root=(
     "programs/autoexec.asm AUTOEXEC.BIN"
     "programs/setup/setup.asm SETUP.BIN"
@@ -330,7 +250,7 @@ for prog in "${programs_root[@]}"; do
 
     if [ $FLAG_NO_PROGRAMS_RECOMP == 0 ]; then
         print_info "Compiling $src => bin/$bin_name..."
-        nasm -f bin $src -o bin/$bin_name $addition_flags
+        nasm $CPU_FLAG -f bin $src -o bin/$bin_name $addition_flags
         check_error "Compilation of $src failed"
         print_ok "$bin_name compiled successfully"
     fi
@@ -346,30 +266,17 @@ programs=(
     "programs/grep.asm GREP.BIN"
     "programs/head.asm HEAD.BIN"
     "programs/tail.asm TAIL.BIN"
-    "programs/cpu.asm CPU.BIN"
     "programs/dlist.asm DLIST.BIN"
     "programs/theme.asm THEME.BIN"
-    "programs/fetch.asm FETCH.BIN"
     "programs/imfplay.asm IMFPLAY.BIN"
     "programs/wavplay.asm WAVPLAY.BIN"
     "programs/credits.asm CREDITS.BIN"
     "programs/hello.asm HELLO.BIN"
-    "programs/write.asm WRITER.BIN"
-    "programs/barchart.asm BCHART.BIN"
-    "programs/brainf.asm BRAINF.BIN"
-    "programs/calc.asm CALC.BIN"
     "programs/memory.asm MEMORY.BIN"
-    "programs/mine.asm MINE.BIN"
     "programs/piano.asm PIANO.BIN"
-    "programs/snake.asm SNAKE.BIN"
     "programs/space.asm SPACE.BIN"
     "programs/procentc.asm PROCENTC.BIN"
     "programs/paint.asm PAINT.BIN"
-    "programs/pong.asm PONG.BIN"
-    "programs/hexedit.asm HEXEDIT.BIN"
-    "programs/clock.asm CLOCK.BIN"
-    "programs/mandel.asm MANDEL.BIN"
-    "programs/tetris.asm TETRIS.BIN"
     "programs/tetris-df.asm TETRIS2.BIN"
     "programs/chars.asm CHARS.BIN"
     "programs/eye.asm EYE.BIN"
@@ -389,7 +296,7 @@ for prog in "${programs[@]}"; do
 
     if [ $FLAG_NO_PROGRAMS_RECOMP == 0 ]; then
         print_info "Compiling $src => bin/$bin_name..."
-        nasm -f bin $src -o bin/$bin_name
+        nasm $CPU_FLAG -f bin $src -o bin/$bin_name
         check_error "Compilation of $src failed"
         print_ok "$bin_name compiled successfully"
     fi
@@ -404,7 +311,6 @@ done
 programs_com=(
     "programs/COM/hello.asm HELLO.COM"
     "programs/COM/fractal.asm FRACTAl.COM"
-    "programs/COM/clock.asm CLOCK.COM"
 )
 
 for prog in "${programs_com[@]}"; do
@@ -413,7 +319,7 @@ for prog in "${programs_com[@]}"; do
 
     if [ $FLAG_NO_PROGRAMS_RECOMP == 0 ]; then
         print_info "Compiling $src => bin/$bin_name..."
-        nasm -f bin $src -o bin/$bin_name
+        nasm $CPU_FLAG -f bin $src -o bin/$bin_name
         check_error "Compilation of $src failed"
         print_ok "$bin_name compiled successfully"
     fi
@@ -434,7 +340,7 @@ for prog in "${programs_exe[@]}"; do
 
     if [ $FLAG_NO_PROGRAMS_RECOMP == 0 ]; then
         print_info "Compiling $src => bin/$bin_name..."
-        nasm -f bin -I programs/EXE/ $src -o bin/$bin_name
+        nasm $CPU_FLAG -f bin -I programs/EXE/ $src -o bin/$bin_name
         check_error "Compilation of $src failed"
         print_ok "$bin_name compiled successfully"
     fi
@@ -455,7 +361,7 @@ for prog in "${programs_ple[@]}"; do
 
     if [ $FLAG_NO_PROGRAMS_RECOMP == 0 ]; then
         print_info "Compiling $src => bin/$bin_name..."
-        nasm -f bin -I programs/PLE/ $src -o bin/$bin_name
+        nasm $CPU_FLAG -f bin -I programs/PLE/ $src -o bin/$bin_name
         check_error "Compilation of $src failed"
         print_ok "$bin_name compiled successfully"
     fi
@@ -559,13 +465,5 @@ if [ $FLAG_QUIET_MODE == 0 ]; then
     echo -e "$YELLOW Disk contents:$NC"
     mdir -i disk_img/x16pros.img ::/
 fi
-
-# Create ISO
-# rm -f disk_img/x16pros.iso
-# print_info "Creating ISO image (disk_img/x16pros.iso)..."
-# mkisofs -quiet -V 'x16-PROS' -input-charset iso8859-1 -o disk_img/x16pros.iso -b x16pros.img disk_img/
-# check_error "ISO creation failed"
-# print_ok "ISO image created successfully"
-
 
 print_splitline "Build completed successfully!"
