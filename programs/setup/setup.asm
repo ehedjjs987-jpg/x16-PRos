@@ -93,19 +93,19 @@ setup:
     call string_move_cursor
 
     ; Get username input
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
     ; Check length
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_string_length
     cmp ax, 0
     je .skip_copy_user
 
     ; Copy input to 'user' variable
-    mov si, 43008
+    mov si, setup_input_buffer
     mov di, user
     mov cx, 31
     call string_string_copy
@@ -157,17 +157,17 @@ setup:
     mov dl, 5
     call string_move_cursor
 
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_string_length
     cmp ax, 0
     je .encrypt_pass ; use default empty pass
 
-    mov si, 43008
+    mov si, setup_input_buffer
     mov di, password
     mov cx, 31
     call string_string_copy
@@ -216,17 +216,17 @@ setup:
     mov dl, 5
     call string_move_cursor
 
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_string_length
     cmp ax, 0
     je .save_timezone
 
-    mov si, 43008
+    mov si, setup_input_buffer
     mov di, timezone
     mov cx, 31
     call string_string_copy
@@ -270,12 +270,12 @@ setup:
     mov dl, 5
     call string_move_cursor
 
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_to_int
     cmp ax, 0
     je .theme_default
@@ -309,7 +309,7 @@ setup:
 
 .save_theme:
     ; Copy to buffer
-    mov di, 43008
+    mov di, setup_input_buffer
     push cx
     rep movsb
     pop cx
@@ -321,7 +321,7 @@ setup:
 
     mov ah, 0x03
     mov si, theme_cfg_file
-    mov bx, 43008
+    mov bx, setup_input_buffer
     int 0x22
 
     mov ah, 0x0A
@@ -351,12 +351,12 @@ setup:
     mov dl, 5
     call string_move_cursor
 
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_to_int
     cmp ax, 0
     je .prompt_default
@@ -379,15 +379,15 @@ setup:
     jmp .save_prompt
 
 .save_prompt:
-    mov di, 43008
+    mov di, setup_input_buffer
     xor al, al
     mov cx, 64
     rep stosb
 
-    mov di, 43008
+    mov di, setup_input_buffer
     call string_string_copy
 
-    mov ax, 43008
+    mov ax, setup_input_buffer
     call string_string_length
     inc ax
     mov cx, ax
@@ -399,7 +399,7 @@ setup:
 
     mov ah, 0x03
     mov si, prompt_cfg_file
-    mov bx, 43008
+    mov bx, setup_input_buffer
     int 0x22
 
     mov ah, 0x0A
@@ -429,12 +429,12 @@ setup:
     mov dl, 5
     call string_move_cursor
 
-    mov di, 43008
+    mov di, setup_input_buffer
     mov byte [di], 0
     mov ax, di
     call string_input_string
 
-    mov si, 43008
+    mov si, setup_input_buffer
     call string_to_int
     cmp ax, 0
     je .default_programs
@@ -556,10 +556,10 @@ setup:
     int 0x22
 
     mov ah, 0x03
-    mov byte [43008], '0'
-    mov byte [43009], 0
+    mov byte [setup_input_buffer], '0'
+    mov byte [setup_input_buffer + 1], 0
     mov si, first_boot_file
-    mov bx, 43008
+    mov bx, setup_input_buffer
     mov cx, 2
     int 0x22
 
@@ -838,3 +838,4 @@ theme_file         db 'THEME.BIN', 0
 writer_file        db 'WRITER.BIN', 0
 
 setup_stage_current db 0
+setup_input_buffer  times 256 db 0
