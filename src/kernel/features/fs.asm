@@ -27,6 +27,7 @@
 ;   Byte 17:     Reserved (0)
 ; End of list: first byte = 0
 ; =======================================================================
+
 fs_get_file_list:
     pusha
 
@@ -1284,12 +1285,12 @@ fs_write_file:
     mov si, ax
     call string_string_length
     test ax, ax
-    je near .failure
+    je_long .failure
     mov ax, si
 
     call string_string_uppercase
     call int_filename_convert
-    jc near .failure
+    jc_long .failure
 
     mov word [.filesize], cx
     mov word [.location], bx
@@ -1330,11 +1331,11 @@ fs_write_file:
 
     mov word ax, [.filename]
     call fs_create_file
-    jc near .failure
+    jc_long .failure
 
     mov word bx, [.filesize]
     test bx, bx
-    je near .finished
+    je_long .finished
 
     call fs_read_fat
     mov si, disk_buffer + 3
@@ -1463,7 +1464,7 @@ fs_write_file:
     add di, cx
     mov word ax, [di]
     test ax, ax
-    je near .write_entry
+    je_long .write_entry
 
     pusha
     add ax, 31
@@ -2080,10 +2081,12 @@ fs_get_file_size:
     jc .failure
 
 .get_size:
-    mov ebx, [di+28]
-    mov [.tmp], ebx
+    mov ax, word [di+28]
+    mov word [.tmp], ax
+    mov ax, word [di+30]
+    mov word [.tmp+2], ax
     popa
-    mov ebx, [.tmp]
+    mov bx, word [.tmp]
     clc
     ret
 
@@ -2613,7 +2616,8 @@ fs_create_directory:
     mov word [di+24], 0
     mov ax, [.cluster]
     mov word [di+26], ax
-    mov dword [di+28], 0
+    mov word [di+28], 0
+    mov word [di+30], 0
 
     cmp word [current_dir_cluster], 0
     jne .write_entry_sub
