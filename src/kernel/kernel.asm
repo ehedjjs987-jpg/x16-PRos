@@ -8,6 +8,18 @@
 [BITS 16]
 [ORG 0x0000]
 
+%macro jc_long 1
+    jnc %%skip
+    jmp %1
+  %%skip:
+%endmacro
+
+%macro je_long 1
+    jne %%skip
+    jmp %1
+  %%skip:
+%endmacro
+
 %macro pusha 0
     push ax
     push cx
@@ -29,6 +41,7 @@
     pop cx
     pop ax
 %endmacro
+
 
 COLOR_WHITE          equ 0x0F
 COLOR_GREEN          equ 0x0A
@@ -483,91 +496,91 @@ get_cmd:
 
     mov di, exit_string
     call string_string_compare
-    jc near exit
+    jc_long exit
 
     mov di, help_string
     call string_string_compare
-    jc near print_help
+    jc_long print_help
 
     mov di, info_string
     call string_string_compare
-    jc near print_info
+    jc_long print_info
 
     mov di, cls_string
     call string_string_compare
-    jc near clear_screen
+    jc_long clear_screen
 
     mov di, dir_string
     call string_string_compare
-    jc near list_directory
+    jc_long list_directory
 
     mov di, ver_string
     call string_string_compare
-    jc near print_ver
+    jc_long print_ver
 
     mov di, time_string
     call string_string_compare
-    jc near print_time
+    jc_long print_time
 
     mov di, date_string
     call string_string_compare
-    jc near print_date
+    jc_long print_date
 
     mov di, cat_string
     call string_string_compare
-    jc near cat_file
+    jc_long cat_file
 
     mov di, del_string
     call string_string_compare
-    jc near del_file
+    jc_long del_file
 
     mov di, copy_string
     call string_string_compare
-    jc near copy_file
+    jc_long copy_file
 
     mov di, ren_string
     call string_string_compare
-    jc near ren_file
+    jc_long ren_file
 
     mov di, size_string
     call string_string_compare
-    jc near size_file
+    jc_long size_file
 
     mov di, shut_string
     call string_string_compare
-    jc near do_shutdown
+    jc_long do_shutdown
 
     mov di, reboot_string
     call string_string_compare
-    jc near do_reboot
+    jc_long do_reboot
 
     mov di, touch_string
     call string_string_compare
-    jc near touch_file
+    jc_long touch_file
 
     mov di, write_string
     call string_string_compare
-    jc near write_file
+    jc_long write_file
 
     mov di, view_string
     call string_string_compare
-    jc near view_bmp
+    jc_long view_bmp
 
     mov di, mkdir_string
     call string_string_compare
-    jc near mkdir_command
+    jc_long mkdir_command
 
     mov di, deldir_string
     call string_string_compare
-    jc near deldir_command
+    jc_long deldir_command
 
     mov di, cd_string
     call string_string_compare
-    jc near cd_command
+    jc_long cd_command
 
     mov di, terry_string
     call string_string_compare
-    jc near rip_terry
+    jc_long rip_terry
 
     mov si, command
     mov di, kernel_file
@@ -1386,7 +1399,9 @@ cat_file:
     mov word [.line_count], 0
 
 .print_loop:
-    cmp dword [.rem_size], 0
+    mov ax, word [.rem_size]
+    or ax, word [.rem_size+2]
+    cmp ax, 0
     je .end_cat
 
     mov es, [.curr_seg]
@@ -1398,7 +1413,8 @@ cat_file:
 
     add word [.curr_seg], 0x1000
 .no_wrap:
-    sub dword [.rem_size], 1
+    sub word [.rem_size], 1
+    sbb word [.rem_size+2], 0
 
     cmp al, 0
     je .end_cat
